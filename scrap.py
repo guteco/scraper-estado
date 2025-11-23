@@ -57,8 +57,10 @@ class SigEducScraper:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--start-maximized')
+        options.page_load_strategy = 'eager' # Não espera carregar todas as imagens/css para prosseguir
         
         self.driver = webdriver.Chrome(options=options)
+        self.driver.set_page_load_timeout(180) # Aumenta timeout para 3 minutos
 
     def fechar_driver(self):
         if self.driver:
