@@ -3,6 +3,7 @@ import pandas as pd
 import json
 import os
 import time
+import gc
 from datetime import datetime
 from scrap import SigEducScraper
 
@@ -142,6 +143,10 @@ with col1:
                 st.session_state['dados'] = scraper.dados_extraidos
                 st.session_state['arquivo_html'] = arquivo_html
                 st.session_state['timestamp'] = scraper.timestamp
+                
+                # Limpeza de memória explícita
+                del scraper
+                gc.collect()
                 
         except Exception as e:
             st.error(f"Ocorreu um erro durante a execução: {str(e)}")

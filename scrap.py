@@ -57,8 +57,16 @@ class SigEducScraper:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--start-maximized')
-        options.add_argument("--disable-popup-blocking") # Ajuda com alertas em headless
-        options.page_load_strategy = 'eager' # Não espera carregar todas as imagens/css para prosseguir
+        options.add_argument("--disable-popup-blocking")
+        options.add_argument("--disable-extensions") # Economiza memória
+        options.add_argument("--disable-infobars")
+        options.add_argument("--disable-notifications")
+        options.page_load_strategy = 'eager'
+        
+        # Flags experimentais para reduzir memória em containers
+        options.add_argument("--disable-dev-shm-usage") # Já estava, mas reforçando importância
+        options.add_argument("--no-zygote") 
+        options.add_argument("--single-process") # Pode ser instável, mas economiza muita RAM
         
         self.driver = webdriver.Chrome(options=options)
         self.driver.set_page_load_timeout(180) # Aumenta timeout para 3 minutos
@@ -267,24 +275,27 @@ class SigEducScraper:
                     except:
                         pass
                         
-                    # Aguarda voltar para a lista com timeout maior e fallback
+                    # Aguarda voltar para a lista com timeout e fallback robusto
                     try:
                         WebDriverWait(self.driver, 10).until(
                             EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
                         )
                     except TimeoutException:
-                        self.log("Lista não reapareceu. Tentando refazer a busca...", "AVISO")
-                        # Tenta clicar em buscar novamente se o botão estiver visível
+                        self.log("Lista não reapareceu. Executando recuperação total...", "AVISO")
                         try:
-                            botao_buscar = self.driver.find_element(By.XPATH, "//input[@value='Buscar']")
-                            self.driver.execute_script("arguments[0].click();", botao_buscar)
-                            WebDriverWait(self.driver, 15).until(
-                                EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
-                            )
-                            self.log("Busca refeita com sucesso.", "SUCESSO")
-                        except Exception as e_busca:
-                            self.log(f"Falha ao refazer busca: {e_busca}", "ERRO")
-                            raise e_busca
+                            # Estratégia de Recuperação Robusta:
+                            # 1. Recarrega a página inicial para limpar qualquer estado inválido
+                            self.acessar_site()
+                            # 2. Seleciona a DIREC novamente
+                            self.selecionar_direc()
+                            # 3. Refaz a busca
+                            self.realizar_busca()
+                            
+                            self.log("Recuperação realizada com sucesso. Continuando...", "SUCESSO")
+                        except Exception as e_rec:
+                            self.log(f"Falha na recuperação total: {e_rec}", "ERRO")
+                            # Se falhar aqui, provavelmente a conexão caiu ou o site está fora do ar
+                            raise e_rec
 
                     time.sleep(1)
 
@@ -292,7 +303,7 @@ class SigEducScraper:
                     erro_msg = str(e).splitlines()[0] if str(e) else type(e).__name__
                     self.log(f"Erro ao processar escola índice {i}: {erro_msg}", "ERRO")
                     
-                    # Tentativa de recuperação: Se não encontrar a lista, tenta voltar mais uma vez ou recarregar
+                    # Se deu erro no processamento (não na navegação), tenta voltar
                     try:
                         self.driver.back()
                         time.sleep(2)
