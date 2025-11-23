@@ -148,6 +148,30 @@ with col1:
                 del scraper
                 gc.collect()
                 
+                # Limpeza de arquivos antigos
+                try:
+                    timestamp_atual = st.session_state['timestamp']
+                    arquivos = os.listdir()
+                    count_removidos = 0
+                    for arquivo in arquivos:
+                        if (arquivo.startswith("dados_sigeduc_") or arquivo.startswith("relatorio_sigeduc_")) and \
+                           (timestamp_atual not in arquivo) and \
+                           (arquivo.endswith(".json") or arquivo.endswith(".html")):
+                            try:
+                                os.remove(arquivo)
+                                count_removidos += 1
+                            except Exception as e_del:
+                                print(f"Erro ao remover {arquivo}: {e_del}")
+                    
+                    if count_removidos > 0:
+                        status_text.info(f"Processo concluído! {count_removidos} arquivos antigos foram removidos.")
+                    else:
+                        status_text.success("Processo concluído com sucesso!")
+                        
+                except Exception as e_clean:
+                    print(f"Erro na limpeza de arquivos: {e_clean}")
+                    status_text.success("Processo concluído com sucesso!")
+                
         except Exception as e:
             st.error(f"Ocorreu um erro durante a execução: {str(e)}")
             
