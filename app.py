@@ -63,7 +63,7 @@ with st.sidebar:
         "Quantidade de Escolas (0 = Todas)",
         min_value=0,
         max_value=500,
-        value=2,
+        value=0,
         help="Defina quantas escolas deseja processar. Use 0 para processar todas as encontradas."
     )
     
