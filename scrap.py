@@ -9,11 +9,12 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException
 
 class SigEducScraper:
-    def __init__(self, direc_numero=10, max_escolas=2, headless=False, progress_callback=None):
+    def __init__(self, direc_numero=10, max_escolas=2, headless=False, progress_callback=None, log_callback=None):
         self.direc_numero = direc_numero
         self.max_escolas = max_escolas
         self.headless = headless
         self.progress_callback = progress_callback
+        self.log_callback = log_callback
         self.dados_extraidos = []
         self.log_execucao = []
         self.driver = None
@@ -29,6 +30,9 @@ class SigEducScraper:
         msg_formatada = f"[{timestamp_log}] {icone} {mensagem}"
         print(msg_formatada)
         self.log_execucao.append(msg_formatada)
+        
+        if self.log_callback:
+            self.log_callback(msg_formatada)
 
     def iniciar_driver(self):
         self.log("Iniciando navegador...", "INFO")
@@ -136,9 +140,13 @@ class SigEducScraper:
             for tabela in tabelas:
                 try:
                     caption = tabela.find_element(By.TAG_NAME, "caption")
-                    if "acadêmicas" in caption.text.lower():
+                    texto_caption = caption.text.lower()
+                    if "acadêmicas" in texto_caption:
                         tabela_alvo = tabela
+                        self.log(f"Tabela encontrada: {caption.text}", "SUCESSO")
                         break
+                    else:
+                        self.log(f"Ignorando tabela: {caption.text}", "INFO")
                 except:
                     continue
             
@@ -178,8 +186,12 @@ class SigEducScraper:
                         }
                         dados_escola.append(professor)
 
+        except TimeoutException:
+            self.log(f"Tempo limite excedido ao carregar dados de {nome_escola}. A página pode estar lenta ou vazia.", "AVISO")
         except Exception as e:
-            self.log(f"Erro ao extrair dados da escola {nome_escola}: {e}", "ERRO")
+            # Pega apenas a mensagem de erro resumida, sem o stacktrace gigante
+            erro_resumido = str(e).split('\n')[0]
+            self.log(f"Erro ao extrair dados de {nome_escola}: {erro_resumido}", "ERRO")
         
         return dados_escola
 
@@ -223,13 +235,23 @@ class SigEducScraper:
                     
                     # Tenta pegar o nome oficial dentro da página de detalhes
                     try:
-                        nome_escola_detalhe = self.driver.find_element(By.XPATH, "/html/body/div/div[4]/div/table/tbody/tr[1]/td").text.strip()
+                        # Tenta seletores mais específicos para o título da escola
+                        # Geralmente é um h2, h3 ou div com classe específica. 
+                        # Como fallback, usamos o XPATH antigo mas com verificação
+                        elemento_nome = self.driver.find_element(By.XPATH, "/html/body/div/div[4]/div/table/tbody/tr[1]/td")
+                        nome_escola_detalhe = elemento_nome.text.strip()
+                        
+                        # Se o nome extraído for igual à DIREC, provavelmente pegamos o breadcrumb errado
+                        if f"{self.direc_numero}ª DIREC" in nome_escola_detalhe and len(nome_escola_detalhe) < 20:
+                             nome_escola_detalhe = nome_escola_lista
                     except:
                         nome_escola_detalhe = nome_escola_lista
 
                     novos_dados = self.extrair_dados_escola(nome_escola_detalhe)
-                    self.dados_extraidos.extend(novos_dados)
-                    self.log(f"Extraídos {len(novos_dados)} professores de {nome_escola_detalhe}", "SUCESSO")
+                    
+                    if novos_dados:
+                        self.dados_extraidos.extend(novos_dados)
+                        self.log(f"Extraídos {len(novos_dados)} professores de {nome_escola_detalhe}", "SUCESSO")
                     
                     self.driver.back()
                     # Aguarda voltar para a lista
@@ -239,8 +261,11 @@ class SigEducScraper:
                     time.sleep(1)
 
                 except Exception as e:
-                    self.log(f"Erro ao processar escola índice {i}: {e}", "ERRO")
-                    self.driver.back() # Tenta recuperar
+                    self.log(f"Erro ao processar escola índice {i}: {str(e).splitlines()[0]}", "ERRO") # Loga apenas a primeira linha do erro
+                    try:
+                        self.driver.back() # Tenta recuperar
+                    except:
+                        pass
                     time.sleep(2)
                     continue
 
