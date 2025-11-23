@@ -256,19 +256,31 @@ class SigEducScraper:
                         self.log(f"Extraídos {len(novos_dados)} professores de {nome_escola_detalhe}", "SUCESSO")
                     
                     self.driver.back()
-                    # Aguarda voltar para a lista
-                    WebDriverWait(self.driver, 10).until(
+                    
+                    # Tenta lidar com alerta de reenvio de formulário (comum em JSF ao voltar)
+                    try:
+                        WebDriverWait(self.driver, 3).until(EC.alert_is_present())
+                        alert = self.driver.switch_to.alert
+                        alert.accept()
+                        self.log("Alerta de reenvio de formulário aceito", "INFO")
+                    except:
+                        pass
+                        
+                    # Aguarda voltar para a lista com timeout maior
+                    WebDriverWait(self.driver, 15).until(
                         EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
                     )
                     time.sleep(1)
 
                 except Exception as e:
-                    self.log(f"Erro ao processar escola índice {i}: {str(e).splitlines()[0]}", "ERRO") # Loga apenas a primeira linha do erro
+                    self.log(f"Erro ao processar escola índice {i}: {str(e).splitlines()[0]}", "ERRO")
+                    
+                    # Tentativa de recuperação: Se não encontrar a lista, tenta voltar mais uma vez ou recarregar
                     try:
-                        self.driver.back() # Tenta recuperar
+                        self.driver.back()
+                        time.sleep(2)
                     except:
                         pass
-                    time.sleep(2)
                     continue
 
         except Exception as e:
