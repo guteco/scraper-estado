@@ -57,6 +57,7 @@ class SigEducScraper:
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-gpu')
         options.add_argument('--start-maximized')
+        options.add_argument("--disable-popup-blocking") # Ajuda com alertas em headless
         options.page_load_strategy = 'eager' # Não espera carregar todas as imagens/css para prosseguir
         
         self.driver = webdriver.Chrome(options=options)
@@ -266,14 +267,30 @@ class SigEducScraper:
                     except:
                         pass
                         
-                    # Aguarda voltar para a lista com timeout maior
-                    WebDriverWait(self.driver, 15).until(
-                        EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
-                    )
+                    # Aguarda voltar para a lista com timeout maior e fallback
+                    try:
+                        WebDriverWait(self.driver, 10).until(
+                            EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
+                        )
+                    except TimeoutException:
+                        self.log("Lista não reapareceu. Tentando refazer a busca...", "AVISO")
+                        # Tenta clicar em buscar novamente se o botão estiver visível
+                        try:
+                            botao_buscar = self.driver.find_element(By.XPATH, "//input[@value='Buscar']")
+                            self.driver.execute_script("arguments[0].click();", botao_buscar)
+                            WebDriverWait(self.driver, 15).until(
+                                EC.presence_of_element_located((By.XPATH, "//img[@alt='Selecionar Escola']"))
+                            )
+                            self.log("Busca refeita com sucesso.", "SUCESSO")
+                        except Exception as e_busca:
+                            self.log(f"Falha ao refazer busca: {e_busca}", "ERRO")
+                            raise e_busca
+
                     time.sleep(1)
 
                 except Exception as e:
-                    self.log(f"Erro ao processar escola índice {i}: {str(e).splitlines()[0]}", "ERRO")
+                    erro_msg = str(e).splitlines()[0] if str(e) else type(e).__name__
+                    self.log(f"Erro ao processar escola índice {i}: {erro_msg}", "ERRO")
                     
                     # Tentativa de recuperação: Se não encontrar a lista, tenta voltar mais uma vez ou recarregar
                     try:
